@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juego de Clics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Estilos personalizados para el juego */
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation; /* Mejora la respuesta en dispositivos táctiles */
+        }
+        #game-board {
+            position: relative;
+            width: 100%;
+            height: 70vh;
+            max-width: 800px;
+            cursor: pointer;
+            overflow: hidden; /* Evita que los cuadros se salgan del tablero */
+        }
+        .target {
+            position: absolute;
+            background-color: #1a1a1a;
+            border: 2px solid #333;
+            border-radius: 8px;
+            transition: all 0.1s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .target:hover {
+            transform: scale(1.1);
+            background-color: #000;
+        }
+        .start-button {
+            transition: background-color 0.3s, transform 0.3s;
+        }
+        .start-button:hover {
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-4xl text-center">
+        <h1 class="text-3xl md:text-5xl font-bold text-gray-900 mb-2">Atrapa los Cuadros</h1>
+        <p class="text-lg text-gray-600 mb-6">Haz clic en los cuadros negros. ¡Cada fallo te resta 2 puntos!</p>
+
+        <!-- Contenedor de estadísticas -->
+        <div class="flex justify-center items-center space-x-8 mb-6 bg-white p-4 rounded-xl shadow-md">
+            <div>
+                <span class="text-xl font-semibold">Puntuación: </span>
+                <span id="score" class="text-2xl font-bold text-blue-600">0</span>
+            </div>
+            <div>
+                <span class="text-xl font-semibold">Tiempo: </span>
+                <span id="time" class="text-2xl font-bold text-red-600">30</span>
+            </div>
+        </div>
+
+        <!-- Botón para iniciar el juego -->
+        <button id="start-button" class="start-button bg-blue-600 text-white font-bold py-3 px-8 rounded-lg text-xl shadow-lg hover:bg-blue-700 mb-6">
+            Iniciar Juego
+        </button>
+
+        <!-- Tablero de juego -->
+        <div id="game-board" class="bg-white rounded-2xl shadow-inner border border-gray-200">
+             <div id="message-overlay" class="absolute inset-0 bg-white bg-opacity-80 flex items-center justify-center text-3xl font-bold text-gray-700 hidden rounded-2xl">
+                ¡Tiempo!
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Referencias a los elementos del DOM ---
+        const gameBoard = document.getElementById('game-board');
+        const scoreDisplay = document.getElementById('score');
+        const timeDisplay = document.getElementById('time');
+        const startButton = document.getElementById('start-button');
+        const messageOverlay = document.getElementById('message-overlay');
+
+        // --- Variables del estado del juego ---
+        let score = 0;
+        let timeLeft = 30;
+        let gameInterval = null; // Para el temporizador del juego
+        let targetTimeout = null; // Para controlar la aparición de cuadros
+
+        /**
+         * Función para generar un número aleatorio en un rango.
+         * @param {number} min - El valor mínimo.
+         * @param {number} max - El valor máximo.
+         * @returns {number} Un número aleatorio entre min y max.
+         */
+        function getRandomNumber(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        /**
+         * Crea y muestra un nuevo cuadro negro en una posición aleatoria.
+         */
+        function createTarget() {
+            // Si el juego no está activo, no creamos más cuadros
+            if (timeLeft <= 0) return;
+
+            // Elimina el cuadro anterior si existe
+            const existingTarget = document.querySelector('.target');
+            if (existingTarget) {
+                existingTarget.remove();
+            }
+
+            const target = document.createElement('div');
+            target.classList.add('target');
+
+            // Define un tamaño aleatorio para el cuadro
+            const size = getRandomNumber(30, 80);
+            target.style.width = `${size}px`;
+            target.style.height = `${size}px`;
+
+            // Asegura que el cuadro aparezca completamente dentro del tablero
+            const boardWidth = gameBoard.clientWidth;
+            const boardHeight = gameBoard.clientHeight;
+            const maxX = boardWidth - size;
+            const maxY = boardHeight - size;
+
+            target.style.top = `${getRandomNumber(0, maxY)}px`;
+            target.style.left = `${getRandomNumber(0, maxX)}px`;
+
+            // Añade el evento de clic al cuadro
+            target.addEventListener('click', handleTargetClick);
+
+            gameBoard.appendChild(target);
+            
+            // Hacemos que el cuadro desaparezca y aparezca otro si no se hace clic
+            clearTimeout(targetTimeout);
+            targetTimeout = setTimeout(createTarget, 1500); // Aparece un nuevo cuadro cada 1.5s
+        }
+
+        /**
+         * Maneja el evento de clic en un cuadro.
+         */
+        function handleTargetClick(event) {
+            // Detiene la propagación para no registrar clics en el tablero
+            event.stopPropagation();
+            
+            // Aumenta la puntuación
+            score++;
+            scoreDisplay.textContent = score;
+
+            // Elimina el cuadro clickeado
+            event.target.remove();
+            
+            // Limpia el timeout para evitar cuadros duplicados
+            clearTimeout(targetTimeout);
+
+            // Crea un nuevo cuadro inmediatamente
+            createTarget();
+        }
+
+        /**
+         * Termina el juego, limpia los intervalos y muestra la puntuación final.
+         */
+        function endGame() {
+            clearInterval(gameInterval);
+            gameInterval = null; // Limpiamos la referencia al intervalo
+            clearTimeout(targetTimeout);
+
+            messageOverlay.textContent = `¡Tiempo! Puntuación final: ${score}`;
+            messageOverlay.classList.remove('hidden');
+
+            const existingTarget = document.querySelector('.target');
+            if (existingTarget) {
+                existingTarget.remove();
+            }
+
+            startButton.textContent = 'Jugar de Nuevo';
+            startButton.style.display = 'block';
+        }
+
+        /**
+         * Inicia el juego y el temporizador.
+         */
+        function startGame() {
+            score = 0;
+            timeLeft = 30;
+            scoreDisplay.textContent = score;
+            timeDisplay.textContent = timeLeft;
+
+            startButton.style.display = 'none';
+            messageOverlay.classList.add('hidden');
+
+            createTarget();
+
+            gameInterval = setInterval(() => {
+                timeLeft--;
+                timeDisplay.textContent = timeLeft;
+                if (timeLeft <= 0) {
+                    endGame();
+                }
+            }, 1000);
+        }
+
+        // --- Asignación de Eventos ---
+        startButton.addEventListener('click', startGame);
+        
+        // Penalizar por click fallido en el fondo blanco
+        gameBoard.addEventListener('click', () => {
+            // Solo penaliza si el juego ha iniciado y no ha terminado.
+            if (gameInterval && timeLeft > 0) { 
+                score = Math.max(0, score - 2); // Resta 2 puntos, sin bajar de 0.
+                scoreDisplay.textContent = score;
+            }
+        });
+    </script>
+</body>
+</html>
